@@ -1,0 +1,87 @@
+#add namespaces 
+
+ip netns add ns1
+ip netns add ns2
+ip netns add ns3
+ip netns add ns4
+ip netns add ns5
+
+#edit connections
+ip link add ve1 type veth peer name ve-peer1
+ip link add ve2 type veth peer name ve-peer2
+ip link add ve3 type veth peer name ve-peer3
+ip link add ve4 type veth peer name ve-peer4
+ip link add ve5 type veth peer name ve-peer5
+ip link add ve6 type veth peer name ve-peer6
+ip link add ve7 type veth peer name ve-peer7
+
+#assigning conections
+
+ip link set ve-peer1 netns ns1
+ip link set ve-peer2 netns ns2
+ip link set ve3 netns ns1
+ip link set ve-peer3 netns ns3
+ip link set ve4 netns ns2
+ip link set ve-peer4 netns ns3
+ip link set ve5 netns ns3
+ip link set ve-peer5 netns ns4
+ip link set ve6 netns ns4
+ip link set ve-peer6 netns ns5
+ip link set ve7 netns ns2
+ip link set ve-peer7 netns ns5
+
+#setting ip address
+ip link set ve1 up
+ip addr add 10.1.0.1/24 dev ve1
+ip netns exec ns1 ip link set ve-peer1 up
+ip netns exec ns1 ip addr add 10.1.0.11/24 dev ve-peer1
+ip link set ve2 up
+ip addr add 10.2.0.2/24 dev ve2
+ip netns exec ns2 ip link set ve-peer2 up
+ip netns exec ns2 ip addr add 10.2.0.12/24 dev ve-peer2
+ip netns exec ns1 ip link set ve3 up
+ip netns exec ns1 ip addr add 10.3.0.3/24 dev ve3
+ip netns exec ns3 ip link set ve-peer3 up
+ip netns exec ns3 ip addr add 10.3.0.13/24 dev ve-peer3
+ip netns exec ns2 ip link set ve4 up
+ip netns exec ns2 ip addr add 10.4.0.4/24 dev ve4
+ip netns exec ns3 ip link set ve-peer4 up
+ip netns exec ns3 ip addr add 10.4.0.14/24 dev ve-peer4
+ip netns exec ns3 ip link set ve5 up
+ip netns exec ns3 ip addr add 10.5.0.5/24 dev ve5
+ip netns exec ns4 ip link set ve-peer5 up
+ip netns exec ns4 ip addr add 10.5.0.15/24 dev ve-peer5
+ip netns exec ns4 ip link set ve6 up
+ip netns exec ns4 ip addr add 10.6.0.6/24 dev ve6
+ip netns exec ns5 ip link set ve-peer6 up
+ip netns exec ns5 ip addr add 10.6.0.16/24 dev ve-peer6
+ip netns exec ns2 ip link set ve7 up
+ip netns exec ns2 ip addr add 10.7.0.7/24 dev ve7
+ip netns exec ns5 ip link set ve-peer7 up
+ip netns exec ns5 ip addr add 10.7.0.17/24 dev ve-peer7
+
+#setting loopback up
+ip netns exec ns1 ip link set lo up
+ip netns exec ns2 ip link set lo up
+ip netns exec ns3 ip link set lo up
+ip netns exec ns4 ip link set lo up
+ip netns exec ns5 ip link set lo up
+
+# enable routing 
+echo 1 > /proc/sys/net/ipv4/ip_forward
+ip netns exec ns1 echo 1 > /proc/sys/net/ipv4/ip_forward
+ip netns exec ns2 echo 1 > /proc/sys/net/ipv4/ip_forward
+ip netns exec ns3 echo 1 > /proc/sys/net/ipv4/ip_forward
+ip netns exec ns4 echo 1 > /proc/sys/net/ipv4/ip_forward
+ip netns exec ns5 echo 1 > /proc/sys/net/ipv4/ip_forward
+
+#running protocol
+java -jar Untitled.jar
+ip netns exec ns1 java -jar Untitled.jar
+ip netns exec ns2 java -jar Untitled.jar
+ip netns exec ns3 java -jar Untitled.jar
+ip netns exec ns4 java -jar Untitled.jar 
+ip netns exec ns5 java -jar Untitled.jar
+
+
+
