@@ -27,8 +27,8 @@ public class Hop {
 	static BlockingQueue<Message> reception;
 	static Map<String, String> rout_table;
 	static HashMap<DatagramChannel, InetSocketAddress> to_addresses;
-	static Set<DatagramChannel> interfaces;
-	static HashMap<DatagramChannel,DatagramChannel> recievers;
+	static Set<DatagramChannel> interfaces;//normal
+	static HashMap<DatagramChannel,DatagramChannel> recievers;//broadcast >> normal
 
 	Hop() throws IOException {
 		// ***********************
@@ -39,6 +39,7 @@ public class Hop {
 			InetSocketAddress brd = to_addresses.get(ch);
 			DatagramChannel rec = DatagramChannel.open();
 			rec.socket().setBroadcast(true);
+			rec.socket().setSoTimeout(10);
 			rec.bind(brd);
 			recievers.put(rec,ch);
 		}
@@ -56,13 +57,18 @@ public class Hop {
 		lock = new ReentrantLock();
 		reception = new LinkedBlockingQueue<Message>();
 		rout_table = new HashMap<String, String>();
-
+		
+		for(DatagramChannel c: interfaces){
+			String s = c.socket().getLocalAddress().toString().substring(1);
+			my_names.add(s);
+		}
+		
 	}
 
 	static void Beeper() throws InterruptedException, IOException {
 		ByteBuffer bbuf = ByteBuffer.allocate(1200);
 		while (true) {
-			Thread.sleep(200);
+			Thread.sleep(10);
 
 			for (DatagramChannel ch : interfaces) {
 				bbuf.put("B#".getBytes("UTF-16be"));
@@ -79,7 +85,8 @@ public class Hop {
 		ByteBuffer bbuf = ByteBuffer.allocate(1200);
 
 		String str;
-
+		
+		//System.out.println(my_names.toString());
 		while (true) {
 			// DatagramChannel rec = DatagramChannel.open();
 			// InetSocketAddress brd = new InetSocketAddress("255.255.255.255",
@@ -90,15 +97,17 @@ public class Hop {
 				bbuf.flip();
 				str = StandardCharsets.UTF_16BE.decode(bbuf.duplicate()).toString();
 				bbuf.clear();
-				reception.put(new Message(client_from, str, recievers.get(ch)));
-				
-				
+				reception.put(new Message(client_from, str, ch));
+				//System.out.println(client_from);
+				/*
 				InetSocketAddress client_fr = (InetSocketAddress) recievers.get(ch).receive(bbuf);
 				bbuf.flip();
 				str = StandardCharsets.UTF_16BE.decode(bbuf.duplicate()).toString();
 				if(str.charAt(0)=='H')System.out.println(str);
 				bbuf.clear();
 				reception.put(new Message(client_fr, str, recievers.get(ch)));
+				
+				*/
 			}
 		}
 		//
@@ -139,35 +148,47 @@ public class Hop {
 				Thread.sleep(10);
 			}
 			Message m = reception.take();
-			SocketAddress add = m.from;
+			
+			SocketAddress address = m.from;
 			String msg = m.msg;
-
+			//System.out.println(my_names);
+			
+			int i = address.toString().indexOf(':');
+			String add = address.toString().substring(1, i);
+			//System.out.println(add);
+			
 			if (msg.length() > 0 && msg.charAt(0) == 'B') {
-
-				// System.out.println("B");
+				
+				if (my_names.contains(add))
+					continue;
+				//System.out.println(my_names.toString());
+				
+				
+				 //System.out.println(add);
 				String H = "H#";
 				// H = H + msg.substring(2);
-				String tmp = add.toString();
+				//String tmp = add.toString();
 
-				int p;
-				p = tmp.indexOf(":");
-				tmp = tmp.substring(1, p);
+				//int p;
+				//p = tmp.indexOf(":");
+				//tmp = tmp.substring(1, p);
 				// System.out.println(tmp);
-				H = H + tmp + "#";
+				H = H + add + "#";
 				//System.out.println(H);
 				ByteBuffer to_send = ByteBuffer.allocate(1500);
 				to_send.put(H.getBytes("UTF-16BE"));
 				to_send.limit(to_send.position());
 				to_send.position(0);
 				// System.out.println(StandardCharsets.UTF_16BE.decode(to_send.duplicate()).toString());
-				m.ch.send(to_send, new InetSocketAddress(m.ch.socket().getLocalAddress(),30009));
+				recievers.get(m.ch).send(to_send, new InetSocketAddress(m.ch.socket().getLocalAddress(),30009));
 				//System.out.println(new InetSocketAddress(m.ch.socket().getLocalAddress(),30009));
-				//System.out.println("sent");
+				//System.out.println(m.ch.socket().getLocalAddress());
 
 			}
 
 			if (msg.length() > 0 && msg.charAt(0) == 'H') {
-
+				
+				//System.out.println("hello");
 				// System.out.println("H");
 				 //System.out.println(msg);
 				int p, q;
@@ -176,13 +197,19 @@ public class Hop {
 				q = msg.indexOf('#', p + 1);
 
 				String my_add = msg.substring(p + 1, q);
+				
 				// System.out.println(my_add);
 				//System.out.println(my_add);
-				my_names.add(my_add);
+				//my_names.add(my_add);
 
+				//System.out.println(g.keySet());
 				if (!g.containsKey("zero")) {
 					g.put("zero", new HashMap<String, Integer>());
 				}
+				
+				if (!my_names.contains(my_add))
+					continue;
+				
 				g.get("zero").put(my_add, 0);
 
 				// System.out.println(g.keySet().toString());
@@ -193,27 +220,32 @@ public class Hop {
 				
 				//System.out.println(msg);
 
-				String tmp = add.toString();
-				p = tmp.indexOf(":");
-				tmp = tmp.substring(1, p);
+				//String tmp = add.toString();
+				//p = tmp.indexOf(":");
+				//tmp = tmp.substring(1, p);
 
-				if(tmp.equals(my_add)) continue;
-				g.get(my_add).put(tmp, 1);
-				if (!g.containsKey(tmp)) {
-					g.put(tmp, new HashMap<String, Integer>());
+				if(add.equals(my_add)) continue;
+				g.get(my_add).put(add, 1);
+				if (!g.containsKey(add)) {
+					g.put(add, new HashMap<String, Integer>());
 					//System.out.println(tmp);
 				}
 				
-				g.get(tmp).put(my_add, 1);
-				System.out.println(g);
+				g.get(add).put(my_add, 1);
+				//System.out.println(g);
 				String T = "T#";
-				T = T + my_add + "#" + tmp + '#';
-				System.out.println(g);
-				ByteBuffer to_send = ByteBuffer.allocate(1500);
-				to_send.put(T.getBytes("UTF-16BE"));
-				to_send.limit(to_send.position());
-				to_send.position(0);
-				m.ch.send(to_send, new InetSocketAddress(m.ch.socket().getLocalAddress(),30009));
+				T = T + my_add + "#" + add + '#';
+				//System.out.println(g);
+
+				for (DatagramChannel c: recievers.keySet()){
+					ByteBuffer to_send = ByteBuffer.allocate(1500);
+					to_send.put(T.getBytes("UTF-16BE"));
+					to_send.limit(to_send.position());
+					to_send.position(0);
+					to_send.clear();
+					recievers.get(c).send(to_send, new InetSocketAddress(c.socket().getLocalAddress(),30009));
+				}
+				
 				//System.out.println("sent");
 			}
 
@@ -229,6 +261,9 @@ public class Hop {
 
 				// System.out.println(from);
 				// System.out.println(to);
+				if (my_names.contains(add))
+					continue;
+				
 				if (my_names.contains(from) || my_names.contains(to))
 					continue;
 
@@ -247,12 +282,30 @@ public class Hop {
 				}
 				g.get(to).put(from, 1);
 
-				// this.update_graph(msg.substring(2));
-				ByteBuffer to_send = ByteBuffer.allocate(1500);
-				to_send.put(msg.getBytes("UTF-16BE"));
-				to_send.limit(to_send.position());
-				to_send.position(0);
-				m.ch.send(to_send, to_addresses.get(m.ch));
+				for (DatagramChannel c: recievers.keySet()){
+					ByteBuffer to_send = ByteBuffer.allocate(1500);
+					to_send.put(msg.getBytes("UTF-16BE"));
+					to_send.limit(to_send.position());
+					to_send.position(0);
+					to_send.clear();
+					recievers.get(c).send(to_send, new InetSocketAddress(c.socket().getLocalAddress(),30009));
+				}
+				
+				
+				for (String s1: my_names)
+					for (String s2 : my_names)
+						if(!s1.equals(s2)){
+							for (DatagramChannel c: recievers.keySet()){
+								ByteBuffer to_send = ByteBuffer.allocate(1500);
+								String newmsg = "T#" +s1 +"#" + s2 + "#";
+								to_send.put(newmsg.getBytes("UTF-16BE"));
+								to_send.limit(to_send.position());
+								to_send.position(0);
+								to_send.clear();
+								recievers.get(c).send(to_send, new InetSocketAddress(c.socket().getLocalAddress(),30009));
+							}
+						}
+							
 				// connection_from(msg.substring(2, i));
 			}
 
@@ -276,7 +329,7 @@ public class Hop {
 
 				String next_hop = rout_table.get(to_add);// = next(to_add);
 
-				InetSocketAddress to_sock = new InetSocketAddress(next_hop, 30009);
+				//InetSocketAddress to_sock = new InetSocketAddress(next_hop, 30009);
 
 				ByteBuffer to_send = ByteBuffer.allocate(1500);
 				to_send.put(msg.getBytes("UTF-16BE"));
@@ -406,19 +459,19 @@ public class Hop {
 	public static void graph_control() throws InterruptedException {
 
 		while (true) {
-			Thread.sleep(3000);
+			Thread.sleep(4000);
 			lock.lock();
 			g.clear();
 			p.clear();
 			q.clear();
 			d.clear();
 			rout_table.clear();
-			Thread.sleep(200);
+			Thread.sleep(1500);
 			Dijkstra("zero");
 			roots_build();
 			lock.unlock();
 			System.out.println(rout_table.toString());
-			System.out.println(g.keySet().toString());
+			System.out.println(g.toString());
 		}
 
 	}
